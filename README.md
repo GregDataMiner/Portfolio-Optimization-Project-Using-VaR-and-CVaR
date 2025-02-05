@@ -1,120 +1,116 @@
-# **📊 Portfolio Optimization Project Using VaR and CVaR**
 
-This project focuses on optimizing a financial portfolio based on **Value at Risk (VaR)** and **Conditional Value at Risk (CVaR)**, using **Python**. The approach explores two main strategies for portfolio selection:
-1. **Minimizing correlation** between asset returns.
-2. **Maximizing the Sharpe ratio** for selected assets.
+# 📊 **Portfolio Optimization Using VaR and CVaR**
 
----
+This project demonstrates how to optimize a financial portfolio by minimizing the Conditional Value at Risk (CVaR). While the report presents results based on a predefined set of parameters, the Python program is **interactive**, allowing users to:
+- Select assets based on either **correlation** or **Sharpe ratio**.
+- Specify the **number of assets** to include in the portfolio.
 
-## **🛠️ Key Features of the Project**
+[The report display and analyse specific parameters available here](report_FR.pdf)
 
-1. **Asset Selection**
-   - Assets are chosen from the **CAC 40** index based on their correlation or Sharpe ratio.
-   - Example assets: Orange, Danone, Sanofi, Atos.
-
-2. **Optimization Methods**
-   - **VaR**: Measures the maximum potential loss at a certain confidence level (e.g., 95%).
-   - **CVaR**: Captures the average loss in extreme scenarios where the loss exceeds the VaR threshold.
-   - **VaRSR**: An advanced measure combining VaR with the Sharpe ratio for better risk-adjusted returns.
-
-3. **Portfolio Simulation**
-   - Generates future scenarios of returns to test risk models.
-   - Optimizes allocation weights to minimize CVaR.
-
-4. **Results Comparison**
-   - Multiple portfolios are generated and evaluated to find the best combination of assets for risk and return.
 
 ---
 
-## **🔍 Code Overview**
+## 📋 **Main Functions Overview**
 
-### **Libraries Used**
-- `yfinance`: To fetch stock price data.
-- `pandas`, `numpy`: For data manipulation.
-- `pylab`: Numerical calculations and simulations.
-- `pulp`: Optimization library for linear programming.
-
-### **Key Functions**
-1. **Asset Data Handling**
-   - `get_Rdt()`: Calculates daily returns from historical price data.
-   - `NotCorr()`: Selects assets with the lowest average correlation.
-   - `ratio_sharpe()`: Selects assets with the highest Sharpe ratio.
-
-2. **Portfolio Optimization**
-   - `Optimisation_VaR_CVaR()`: Defines and solves the optimization problem to minimize CVaR.
-   - `calculate_VaRSR()`: Computes the VaRSR to evaluate the risk-return balance.
-
-3. **Result Visualization**
-   - Output includes portfolio weights, expected returns, volatility, and risk measures (VaR, CVaR, VaRSR).
+### **1. Download and Process Asset Data**
+```python
+def get_Rdt(Code):
+    Prix = [py.array(yf.Ticker(name).history(start="2023-10-01", end="2024-10-01").Close) for name in Code]
+    R = [(Prix[i][1:] - Prix[i][:-1]) / Prix[i][:-1] for i in range(len(Code))]
+    return py.array(R)
+```
+- **Purpose:** This function retrieves daily prices for each asset and calculates daily returns.
+- **Input:** A list of asset tickers.
+- **Output:** An array of daily returns for each asset.
 
 ---
 
-## **📈 Example Results**
-
-### **Asset Violations of VaR**
-![VaR Violations AXA](./images/var_violations_axa.png)
-- This graph shows how often AXA returns exceeded the VaR threshold over time. Red points indicate violations.
-
-### **Portfolio Risk and Return**
-![Portfolio Optimization](./images/portfolio_optimization.png)
-- The optimized portfolio demonstrates improved risk-adjusted returns by reducing CVaR while maximizing the Sharpe ratio.
-
-### **Performance Table**
-| Method       | VaR       | ES        |
-|--------------|-----------|-----------|
-| Historical   | -48639.58 | -68486.19 |
-| Gaussian     | -40776.76 | -46725.64 |
-| Modified     | -99970.03 | -99970.03 |
+### **2. Asset Selection by Correlation**
+```python
+def NotCorr(Code, t):
+    Rdts = get_Rdt(Code).T
+    Rdts = pd.DataFrame(Rdts, columns=Code)
+    Mat_Corr = Rdts.corr()
+    Mean_Corr = Mat_Corr.apply(lambda x: (x.sum() - 1) / (len(x) - 1), axis=1)
+    return Mean_Corr.nsmallest(t).index.tolist()
+```
+- **Purpose:** Selects the top `t` assets with the lowest average correlation.
+- **Input:** A list of asset tickers and the number of assets `t` to select.
+- **Output:** A list of the least correlated assets.
 
 ---
 
-## **📝 Report Structure**
-
-1. **Introduction**
-   - Overview of portfolio risk management using VaR and CVaR.
-   - Importance of asset diversification and risk reduction.
-
-2. **Asset Selection**
-   - Explanation of chosen assets from the CAC 40 index.
-   - Criteria for selecting assets with low correlation or high Sharpe ratio.
-
-3. **Optimization Process**
-   - Steps to define the optimization problem and solve it using simulations.
-   - Comparison between portfolios optimized by correlation and Sharpe ratio.
-
-4. **Results and Analysis**
-   - Detailed performance metrics for each portfolio.
-   - Discussion on how market trends, like bullish phases, affect portfolio selection.
-
-5. **Conclusion**
-   - Summary of findings on the effectiveness of different risk models.
-   - Recommendations for improving portfolio risk management strategies.
+### **3. Asset Selection by Sharpe Ratio**
+```python
+def ratio_sharpe(Code, t, risk_free_rate=0):
+    Rdts = get_Rdt(Code)
+    Rdt_Mean = [py.mean(Rdts[i]) for i in range(len(Rdts))]
+    Rdt_Std = [py.std(Rdts[i]) for i in range(len(Rdts))]
+    Sharpe_Ratio = [(Rdt_Mean[i] - risk_free_rate) / Rdt_Std[i] if Rdt_Std[i] != 0 else 0 for i in range(len(Rdt_Mean))]
+    data = {'Ticker': Code, 'Rdt_Mean': Rdt_Mean, 'Volatility': Rdt_Std, 'Sharpe_Ratio': Sharpe_Ratio}
+    df = pd.DataFrame(data)
+    return df.sort_values(by='Sharpe_Ratio', ascending=False).head(t)['Ticker'].tolist()
+```
+- **Purpose:** Selects the top `t` assets with the highest Sharpe ratio.
+- **Input:** A list of asset tickers, number of assets `t`, and an optional risk-free rate.
+- **Output:** A list of assets with the best Sharpe ratios.
 
 ---
 
-## **🚀 How to Run the Code**
+### **4. Optimization of VaR and CVaR**
+```python
+def Optimisation_VaR_CVaR(Rdt_Mean, Mat_Cov, t, epsilon, N, C, alpha=0.95):
+    r = simulation(Rdt_Mean, Mat_Cov, N, t)
+    gamma = pulp.LpVariable('gamma')  # VaR
+    cvar = pulp.LpVariable('cvar')    # CVaR
+    y = [pulp.LpVariable(f'y{i}', cat='Binary') for i in range(N)]
+    w = [pulp.LpVariable(f'w{i}', lowBound=0) for i in range(t)]
 
-1. Install the required libraries:
-   ```bash
-   pip install yfinance pandas numpy pulp matplotlib
-   ```
+    prob = pulp.LpProblem("Minimisation_CVaR", pulp.LpMinimize)
+    prob += cvar
 
-2. Run the Python script to start the portfolio optimization process:
-   ```python
-   python portfolio_optimization.py
-   ```
+    for j in range(N):
+        prob += -pulp.lpSum(r[j][i] * w[i] for i in range(t)) <= gamma + C * y[j]
+        prob += -pulp.lpSum(r[j][i] * w[i] for i in range(t)) <= cvar
 
-3. Choose the criteria for asset selection:
-   - Option 1: Minimize correlation.
-   - Option 2: Maximize Sharpe ratio.
+    prob += pulp.lpSum(y) <= int(epsilon * N)
+    prob += pulp.lpSum(w) == 1
+    prob += cvar >= gamma + (1 / (1 - alpha)) * (pulp.lpSum(y[j] for j in range(N)) / N)
 
-4. View the output results, including portfolio allocations, risk measures, and visualizations.
+    prob.solve(pulp.PULP_CBC_CMD(msg=False))
+    return [pulp.value(w[i]) for i in range(t)], pulp.value(cvar)
+```
+- **Purpose:** Minimizes the CVaR of the portfolio using linear programming.
+- **Input:** Mean returns, covariance matrix, number of assets, scenario constraints, and CVaR confidence level.
+- **Output:** Optimized portfolio weights and the minimized CVaR.
 
 ---
 
-## **🔗 Additional Resources**
+### **5. Display Results**
+```python
+def Affichage_CVaR_VaRSR(Pond, cvar, VaRSR, Small_Corr_Code, Rdt_Mean, Mat_Cov):
+    print(f"\n{'Ticker':<20} {'Mean Return':<20} {'Daily Volatility':<20} {'Weight':<10}")
+    for i in range(len(Small_Corr_Code)):
+        volatility = np.sqrt(Mat_Cov[i][i])
+        print(f"{Small_Corr_Code[i]:<20} {Rdt_Mean[i]:<20.6f} {volatility:<20.6f} {Pond[i]:<10.2f}")
+    print(f"\nCVaR : {cvar}")
+    print(f"Expected Portfolio Return : {sum(Rdt_Mean[i] * Pond[i] for i in range(len(Small_Corr_Code))):.6f}")
+    print(f"Portfolio Volatility : {np.sqrt(np.dot(Pond.T, np.dot(Mat_Cov, Pond))):.6f}")
+    print(f"VaRSR : {VaRSR:.6f}")
+```
+- **Purpose:** Displays the optimized portfolio's details, including returns, volatility, weights, CVaR, and VaRSR.
+- **Input:** Portfolio weights, CVaR, VaRSR, asset names, mean returns, and covariance matrix.
 
-- **Report Document**: [Optimization Report (PDF)](report.pdf)
-- **Complete Python Code**: [Portfolio Optimization Script](code.py)
+---
 
-Feel free to clone the repository and experiment with the code!
+## 📂 **Project Structure**
+- **Code:** Python script implementing the optimization.
+- **Dependencies:** `pandas`, `pulp`, `yfinance`, `numpy`.
+- **Usage:** Run the script and choose the method to select assets (correlation or Sharpe ratio).
+
+---
+
+## 📈 **Sample Output**
+The script will print the optimized portfolio weights, expected return, volatility, and risk metrics. This helps in making informed investment decisions based on portfolio risk management.
+---
+```
