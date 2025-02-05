@@ -7,6 +7,8 @@ This project demonstrates how to optimize a financial portfolio by minimizing th
 
 [The report display and analyse specific parameters available here](report_FR.pdf)
 
+---
+![cover](Image/cover.png)
 
 ---
 
